@@ -24,7 +24,7 @@ The interoperability test checks parsing, identifier alignment, provenance, inva
 
 The synthetic R scripts received source review and delimiter/quote checks. The research R notebooks in `workflows/` are selected, edited excerpts and have not been rerun with their required private inputs. R was unavailable in the preparation environment, so the scripts were not parsed by R or executed with Seurat, SoupX, or scDblFinder. Their numerical output and package compatibility remain unverified.
 
-When run, each R example records its parameters and `sessionInfo()`. The installer selects available packages; it does not pin a tested R environment. No R-generated result is committed or presented as verified.
+When run, each R example records its parameters and `sessionInfo()`. The installer selects available packages; it does not pin a tested R environment. No output from the synthetic R scripts is committed or presented as verified. The two selected real analysis figures are archival outputs supplied by the author; they were not regenerated or numerically revalidated in this environment.
 
 ## Re-run checks
 
@@ -35,4 +35,5 @@ python -m pytest -q tests/test_python.py
 ```
 
 To reproduce the preview, run the generator and Scanpy commands in the README using fresh output directories. Small numerical or layout differences may occur across platforms and transitive dependency versions.
+
 

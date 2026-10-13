@@ -4,7 +4,17 @@
 
 I use single-cell analysis to connect experimental work with changes in gene expression and cell states. This repository brings together selected excerpts from R notebooks I wrote for my research, covering ambient-RNA correction, doublet checks, normalization, clustering, and annotation.
 
-The notebooks retain my analysis sequence and plotting patterns. I have generalized file paths and identifiers and removed study-specific annotations and results for public sharing. Research data are not distributed with the code.
+The notebooks retain my analysis sequence and plotting patterns. I have generalized file paths and identifiers and removed study-specific annotations and embedded outputs for public sharing. Research data are not distributed with the code.
+
+## Selected plots from my analysis
+
+These are real analysis figures showing numbered clusters. The biological annotations and experimental labels are not shared. The figures are archived outputs; the public notebook excerpts have not been rerun to reproduce them.
+
+| Clustering overview | Subset reclustering |
+| --- | --- |
+| ![UMAP overview with numbered clusters](assets/research/clustering-overview.png) | ![UMAP of a subset with numbered clusters](assets/research/subset-reclustering.png) |
+
+For the normalization, clustering, and `DimPlot` code, see my [clustering notebook](workflows/sctransform-and-clustering.Rmd). The [annotation notebook](workflows/broad-annotation.Rmd) shows how I work from cluster markers to reviewed labels.
 
 ## Start with my R notebooks
 
@@ -62,3 +72,4 @@ Every cell, gene, and label in this preview is artificial. It does not show a re
 My background combines medicinal chemistry, chemical biology, and cancer genomics. I am interested in research that connects computational analysis with experimental biology.
 
 [GitHub profile](https://github.com/MD-Chem) · [ORCID](https://orcid.org/0000-0002-8891-6333) · [LinkedIn](https://www.linkedin.com/in/dmohua/)
+
