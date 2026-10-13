@@ -1,0 +1,226 @@
+---
+title: "Epithelial downstream analysis"
+output: html_notebook
+---
+
+Source-derived, edited excerpts from a supplied workflow for an **already
+integrated** epithelial Seurat object. Its project attribution is not established;
+this file is presented as a separate methods example. This notebook demonstrates CytoTRACE2
+scoring, transfer to Monocle3, graph learning and pseudotime visualization. The
+uploaded source did not implement integration or Harmony; neither is claimed here.
+
+Study identifiers, experimental strata, group mappings, root-cell choices, selected
+genes, comments describing findings and all results have been removed. No data or
+rendered plots are included. This excerpt has not been rerun. Knitting displays
+code only; manual execution requires authorized private inputs and package checks.
+
+```{r setup, include=FALSE, eval=TRUE}
+knitr::opts_chunk$set(eval = FALSE, echo = TRUE, cache = FALSE)
+```
+
+## Libraries and display palette
+
+```{r libraries}
+library(dplyr)
+library(Seurat)
+library(patchwork)
+library(ggplot2)
+library(readr)
+library(tidyverse)
+set.seed(1234)
+
+colors <- c('#1f77b4', '#ff7f0e', '#279e68', '#d62728', '#aa40fc', '#8c564b',
+            '#e377c2', '#b5bd61', '#17becf', '#aec7e8', '#ffbb78', '#98df8a',
+            '#ff9896', '#c5b0d5', '#c49c94', '#f7b6d2', '#dbdb8d', '#9edae5',
+            '#ad494a', '#8c6d31', '#FF34FF', '#763568', '#63FFAC', '#B79762',
+            '#004D43', '#002dff', '#997D87', '#5A0007', '#809693', '#6A3A4C',
+            '#1B4400', '#4FC601', '#3B5DFF', '#4A3B53', '#FF2F80', '#61615A',
+            '#BA0900', '#6B7900', '#00C2A0', '#FFAA92', '#FF90C9', '#B903AA',
+            '#D16100', '#DDEFFF', '#000035', '#7B4F4B', '#A1C299', '#300018',
+            '#0AA6D8', '#013349', '#00846F', '#372101', '#FFB500', '#C2FFED',
+            '#A079BF', '#CC0744')
+```
+
+## Existing integrated object
+
+Run from the repository root. The unprovided object must contain an RNA assay,
+log-normalized RNA expression, Seurat identities, `seurat_clusters` and UMAP
+coordinates. Neutral metadata fields `analysis_group` and `stratum` replace the
+original study fields. `epithelial-settings.rds` must provide a supported `species`,
+two privately chosen `strata` and `plot_features`. No actual values are supplied.
+
+```{r private-inputs}
+epiintegrated <- readRDS("data/private/epithelial-integrated.rds")
+analysis_settings <- readRDS("data/private/epithelial-settings.rds")
+dir.create("outputs/private", recursive = TRUE, showWarnings = FALSE)
+stopifnot(all(c("analysis_group", "stratum", "seurat_clusters") %in%
+                colnames(epiintegrated@meta.data)))
+```
+
+## CytoTRACE2
+
+The source used RNA log-normalized expression. Its organism-specific default has
+been replaced by an explicit private setting. Check the installed CytoTRACE2
+version's input requirements, species and feature identifiers before execution.
+The package reference retained from the source is
+[digitalcytometry/cytotrace2](https://github.com/digitalcytometry/cytotrace2).
+
+```{r cytotrace2-scoring}
+library(CytoTRACE2)
+expression_data <- GetAssayData(epiintegrated, assay = "RNA", layer = "data")
+cytotrace2_result <- cytotrace2(expression_data, species = analysis_settings$species)
+```
+
+```{r merge-scores}
+meta <- epiintegrated@meta.data
+meta <- meta %>% rownames_to_column("cell")
+cytotrace2_result <- cytotrace2_result %>% rownames_to_column("cell")
+meta <- left_join(meta, cytotrace2_result, by = "cell")
+meta <- meta %>% column_to_rownames("cell")
+epiintegrated@meta.data <- meta
+```
+
+## Score and category visualizations
+
+These are plotting calls only. No potency category or ordering is asserted for
+any study cells.
+
+```{r score-visualization}
+FeaturePlot(epiintegrated, features = "CytoTRACE2_Relative", split.by = "stratum") &
+  scale_color_viridis_c(option = "C")
+FeaturePlot(epiintegrated, features = "CytoTRACE2_Score", split.by = "stratum") &
+  scale_color_viridis_c(option = "C")
+DimPlot(object = epiintegrated, reduction = "umap", cols = colors,
+        label = FALSE, group.by = "CytoTRACE2_Potency")
+DimPlot(object = epiintegrated, reduction = "umap", cols = colors,
+        label = FALSE, group.by = "preKNN_CytoTRACE2_Potency")
+```
+
+The original notebook examined separate strata. Selection now comes from private
+settings; names and experimental meaning have been omitted.
+
+```{r stratum-views}
+epi_a <- subset(epiintegrated,
+                cells = colnames(epiintegrated)[epiintegrated$stratum == analysis_settings$strata[1]])
+epi_b <- subset(epiintegrated,
+                cells = colnames(epiintegrated)[epiintegrated$stratum == analysis_settings$strata[2]])
+FeaturePlot(epi_a, features = "CytoTRACE2_Relative", split.by = "analysis_group") &
+  scale_color_viridis_c(option = "C")
+DimPlot(object = epi_a, reduction = "umap", cols = colors, label = FALSE,
+        split.by = "analysis_group", pt.size = 0.03)
+FeaturePlot(epi_b, features = "CytoTRACE2_Relative", split.by = "analysis_group") &
+  scale_color_viridis_c(option = "C")
+DimPlot(object = epi_b, reduction = "umap", cols = colors, label = FALSE,
+        split.by = "analysis_group", pt.size = 0.03)
+saveRDS(epiintegrated, "outputs/private/epithelial-with-scores.rds")
+```
+
+## Monocle3 conversion
+
+The source notebook credited this public
+[Seurat and Monocle3 tutorial](https://rpubs.com/mahima_bose/Seurat_and_Monocle3_p)
+for its Monocle3 conversion approach. The retained code explicitly transfers the
+Seurat clustering and embedding; it does not re-estimate an integration.
+
+```{r monocle-conversion}
+library(monocle3)
+library(SeuratWrappers)
+library(SummarizedExperiment)
+library(SingleCellExperiment)
+library(magrittr)
+
+DefaultAssay(epiintegrated) <- "RNA"
+cds <- as.cell_data_set(epiintegrated)
+head(colData(cds))
+rowData(cds)$gene_short_name <- rownames(cds)
+head(rowData(cds))
+head(counts(cds))
+```
+
+## Transfer clustering and coordinates
+
+The source places all cells in one partition and calls `learn_graph` with
+`use_partition = FALSE`. That is a retained analysis choice requiring review for
+new data. Internal cluster assignments are package-version dependent.
+
+```{r transfer-clusters}
+recreate.partitions <- c(rep(1, ncol(cds)))
+names(recreate.partitions) <- colnames(cds)
+recreate.partitions <- as.factor(recreate.partitions)
+cds@clusters[["UMAP"]][["partitions"]] <- recreate.partitions
+
+list.cluster <- epiintegrated@active.ident
+cds@clusters[["UMAP"]][["clusters"]] <- list.cluster
+reducedDims(cds)[["UMAP"]] <- epiintegrated@reductions$umap@cell.embeddings
+Idents(epiintegrated) <- epiintegrated$seurat_clusters
+
+cluster.before.traj <- plot_cells(cds, color_cells_by = "seurat_clusters",
+                                  label_groups_by_cluster = FALSE,
+                                  group_label_size = 5) +
+  theme(legend.position = "right")
+cluster.before.traj
+```
+
+## Graph learning and manual root selection
+
+```{r graph-learning}
+cds <- learn_graph(cds, use_partition = FALSE)
+plot_cells(cds, color_cells_by = "cluster", label_groups_by_cluster = FALSE,
+           label_branch_points = TRUE, label_roots = TRUE, label_leaves = FALSE,
+           group_label_size = 5)
+```
+
+The next call is interactive and requires a justified root choice. The original
+root selection and its biological rationale have been removed. No replacement
+root or direction is invented. Root choice affects interpretation of pseudotime.
+
+```{r interactive-ordering}
+cds <- order_cells(cds, reduction_method = "UMAP")
+plot_cells(cds, color_cells_by = "pseudotime", label_groups_by_cluster = TRUE,
+           label_branch_points = TRUE, label_roots = FALSE,
+           label_leaves = FALSE, cell_size = 0.2)
+```
+
+## Pseudotime plots
+
+```{r pseudotime-plots}
+png("outputs/private/epithelial-trajectory.png", res = 300, height = 1000, width = 1500)
+plot_cells(cds, color_cells_by = "pseudotime", label_groups_by_cluster = TRUE,
+           label_branch_points = TRUE, label_roots = FALSE,
+           label_leaves = FALSE, cell_size = 0.2)
+dev.off()
+
+cds$monocle3_pseudotime <- pseudotime(cds)
+data.pseudo <- as.data.frame(colData(cds))
+ggplot(data.pseudo, aes(monocle3_pseudotime, seurat_clusters,
+                       fill = seurat_clusters)) + geom_boxplot()
+png("outputs/private/pseudotime-by-cluster.png", res = 300, height = 1600, width = 1500)
+ggplot(data.pseudo, aes(monocle3_pseudotime,
+                       reorder(seurat_clusters, monocle3_pseudotime),
+                       fill = seurat_clusters)) +
+  scale_fill_manual(values = colors) +
+  geom_boxplot()
+dev.off()
+```
+
+## Graph-associated genes and Seurat metadata
+
+The gene list in the source contained unpublished analysis selections. It has
+been replaced with an unprovided private panel. `graph_test` is preserved as a
+method call; no association results are supplied.
+
+```{r graph-associated-genes}
+deg <- graph_test(cds, neighbor_graph = "principal_graph")
+deg %>% arrange(q_value) %>% filter(status == "OK") %>% head()
+FeaturePlot(epiintegrated, features = analysis_settings$plot_features)
+epiintegrated$pseudotime <- pseudotime(cds)
+png("outputs/private/pseudotime-on-umap.png", res = 300, height = 1000, width = 1500)
+FeaturePlot(epiintegrated, features = "pseudotime")
+dev.off()
+saveRDS(epiintegrated, "outputs/private/epithelial-with-pseudotime.rds")
+```
+
+Small compatibility edits replace assay and feature-metadata slot access with
+accessors and simplify cluster-list indexing. These edits have not been execution
+tested. The SeuratWrappers/Monocle3 conversion, matrix scale and species setting
+must be checked in the user's private environment before running the workflow.

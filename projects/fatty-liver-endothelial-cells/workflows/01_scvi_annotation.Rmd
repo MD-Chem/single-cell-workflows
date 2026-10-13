@@ -1,0 +1,285 @@
+---
+title: "Human endothelial cells: scVI handoff, annotation and subset review"
+output: html_document
+---
+
+This notebook presents adapted excerpts from code used in my analysis for
+**Characterisation of endothelial cells in progressive fatty liver disease in
+humans**. It retains the Seurat-side analysis stages while excluding unpublished
+data, marker panels, annotation decisions, group assignments and results.
+
+The original notebook was exploratory, with saved-object dependencies and
+alternative analysis branches. This is a methods portfolio, not a reproducible
+release of the study. It has not been rerun against the private data. All chunks
+have `eval=FALSE`; knitting shows code without running the analysis.
+
+## Inputs and environment
+
+Requires R with Seurat (an Assay5-compatible release for the export block),
+UCell, dplyr, ggplot2, Matrix, clusterProfiler and org.Hs.eg.db. Leiden clustering
+also requires the backend supported by the installed Seurat version. Exact
+historical package versions were not captured by the source notebook.
+
+Keep `local_inputs/` and `private_outputs/` outside version control. Supply:
+
+- `endothelial_scvi.rds`: a Seurat object with RNA counts/data, an imported
+  `scVI` reduction and an existing UMAP. scVI fitting itself is upstream.
+- `analysis_settings.rds`: a named list with `pc_candidates`, `selected_pc`,
+  `subset_label`, `group_column`, `group_order`, `exclude_clusters`,
+  `contrast_ident_1` and `contrast_ident_2`; these are local analysis choices.
+- `signature_panels.rds`: a named list of gene vectors for UCell scoring;
+  `review_features.txt`: one locally selected gene per line.
+- `broad_annotation.tsv` and `subset_annotation.tsv`: local tables with
+  `cluster` and `label` columns, reviewed independently of this public excerpt.
+- `enrichment_genes.txt` and `enrichment_background_entrez.txt`: local gene
+  symbols and the tested background in Entrez IDs, respectively.
+
+```{r setup, eval=FALSE}
+library(Seurat)
+library(UCell)
+library(dplyr)
+library(ggplot2)
+library(Matrix)
+library(clusterProfiler)
+library(org.Hs.eg.db)
+
+set.seed(1234)
+settings <- readRDS("local_inputs/analysis_settings.rds")
+scvi_ec <- readRDS("local_inputs/endothelial_scvi.rds")
+review_features <- readLines("local_inputs/review_features.txt")
+gene_sets <- readRDS("local_inputs/signature_panels.rds")
+dir.create("private_outputs", showWarnings = FALSE)
+```
+
+## Rebuild a Seurat neighbor graph from imported scVI embeddings
+
+The source used embeddings imported into Seurat. A dimensional reduction is not
+itself a Seurat neighbor graph, so the graph and clusters are rebuilt explicitly.
+The existing imported UMAP is used for display; this block does not retrain scVI
+or recompute that UMAP.
+
+```{r scvi-graph, eval=FALSE}
+md_scvi_ec <- scvi_ec
+DefaultAssay(md_scvi_ec) <- "RNA"
+scvi_mat <- Embeddings(md_scvi_ec, reduction = "scVI")
+md_scvi_ec[["scvi_optimized"]] <- CreateDimReducObject(
+  embeddings = scvi_mat, key = "scvi_", assay = "RNA"
+)
+md_scvi_ec <- FindNeighbors(
+  md_scvi_ec, reduction = "scvi_optimized", dims = seq_len(ncol(scvi_mat))
+)
+md_scvi_ec <- FindClusters(md_scvi_ec, algorithm = 4, resolution = 0.8)
+DimPlot(md_scvi_ec, reduction = "umap", label = TRUE,
+        group.by = "seurat_clusters", pt.size = 1) + coord_fixed()
+```
+
+## Normalize expression for marker and signature review
+
+Expression normalization and variable-feature selection support expression
+review; they do not replace the imported scVI embedding used above.
+
+```{r expression-review, eval=FALSE}
+md_scvi_ec <- NormalizeData(
+  md_scvi_ec, normalization.method = "LogNormalize", scale.factor = 10000
+)
+md_scvi_ec <- FindVariableFeatures(
+  md_scvi_ec, selection.method = "vst", nfeatures = 3000
+)
+md_scvi_ec <- ScaleData(md_scvi_ec, features = VariableFeatures(md_scvi_ec))
+md_scvi_ec <- AddModuleScore_UCell(obj = md_scvi_ec, features = gene_sets)
+
+FeaturePlot(md_scvi_ec, features = paste0(names(gene_sets), "_UCell"))
+DotPlot(md_scvi_ec, features = review_features, cluster.idents = TRUE) +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+## Apply a locally reviewed annotation and select a subset
+
+The actual cluster-to-cell-type mapping is withheld. The mapping below is read
+from a local table and checked against the clusters present in the object.
+
+```{r reviewed-annotation, eval=FALSE}
+Idents(md_scvi_ec) <- "seurat_clusters"
+annotation <- read.delim("local_inputs/broad_annotation.tsv",
+                         colClasses = "character")
+stopifnot(!anyDuplicated(annotation$cluster))
+stopifnot(setequal(annotation$cluster, levels(md_scvi_ec)))
+broad_cluster_ids <- setNames(annotation$label, annotation$cluster)
+md_scvi_ec <- RenameIdents(md_scvi_ec, broad_cluster_ids)
+md_scvi_ec$reviewed_annotation <- Idents(md_scvi_ec)
+DimPlot(md_scvi_ec, group.by = "reviewed_annotation",
+        reduction = "umap", label = TRUE, pt.size = 0.2)
+
+Idents(md_scvi_ec) <- "reviewed_annotation"
+ec_subset <- subset(md_scvi_ec, idents = settings$subset_label)
+```
+
+## Recluster the subset and compare PC choices
+
+The original workflow normalized the subset again, inspected PCA diagnostics,
+and compared multiple PC cutoffs. Its selection and biological interpretation
+are not reproduced. The candidate cutoffs and selected cutoff are local inputs.
+
+```{r subset-pca, eval=FALSE}
+ec_subset <- NormalizeData(
+  ec_subset, normalization.method = "LogNormalize", scale.factor = 10000
+)
+ec_subset <- FindVariableFeatures(
+  ec_subset, selection.method = "vst", nfeatures = 3000
+)
+ec_subset <- ScaleData(ec_subset, features = VariableFeatures(ec_subset))
+ec_subset <- RunPCA(ec_subset, npcs = 100)
+ElbowPlot(ec_subset, ndims = 50)
+DimHeatmap(ec_subset, dims = 25:30, cells = 200, balanced = TRUE)
+
+pc_review <- lapply(settings$pc_candidates, function(n_pc) {
+  candidate <- FindNeighbors(ec_subset, dims = seq_len(n_pc), verbose = FALSE)
+  candidate <- FindClusters(candidate, algorithm = 4, resolution = 0.8)
+  candidate <- RunUMAP(candidate, dims = seq_len(n_pc),
+                       min.dist = 0.5, verbose = FALSE)
+  list(object = candidate,
+       clusters = DimPlot(candidate, reduction = "umap", label = TRUE),
+       groups = DimPlot(candidate, reduction = "umap",
+                        group.by = settings$group_column))
+})
+names(pc_review) <- as.character(settings$pc_candidates)
+ec_subset <- pc_review[[as.character(settings$selected_pc)]]$object
+```
+
+## Discover markers and inspect local gene panels
+
+This is an exploratory cell-level marker workflow. It does not establish
+donor-level differential expression or a validated disease signature.
+
+```{r subset-markers, eval=FALSE}
+Idents(ec_subset) <- "seurat_clusters"
+subset_markers <- FindAllMarkers(
+  ec_subset, min.pct = 0.25, logfc.threshold = 0.25
+)
+write.table(subset_markers, "private_outputs/subset_markers.tsv",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+top20 <- subset_markers %>%
+  group_by(cluster) %>%
+  slice_max(order_by = avg_log2FC, n = 20, with_ties = TRUE)
+DoHeatmap(ec_subset, features = unique(top20$gene))
+FeaturePlot(ec_subset, features = review_features)
+DotPlot(ec_subset, features = review_features, cluster.idents = TRUE) +
+  theme(axis.text.x = element_text(angle = 90))
+
+subset_annotation <- read.delim("local_inputs/subset_annotation.tsv",
+                                colClasses = "character")
+stopifnot(!anyDuplicated(subset_annotation$cluster))
+stopifnot(setequal(subset_annotation$cluster, levels(ec_subset)))
+ec_subset <- RenameIdents(
+  ec_subset, setNames(subset_annotation$label, subset_annotation$cluster)
+)
+ec_subset$reviewed_annotation <- Idents(ec_subset)
+```
+
+## Review composition by a local grouping variable
+
+The source summarized pooled cell proportions. These descriptive plots should
+not be interpreted as a donor-level statistical comparison. The actual group
+labels, exclusions and counts are not included.
+
+```{r composition, eval=FALSE}
+composition_object <- ec_subset
+Idents(composition_object) <- "seurat_clusters"
+if (length(settings$exclude_clusters) > 0) {
+  composition_object <- subset(composition_object,
+                                idents = settings$exclude_clusters,
+                                invert = TRUE)
+}
+metadata <- composition_object[[]]
+metadata$analysis_group <- metadata[[settings$group_column]]
+composition <- metadata %>%
+  group_by(analysis_group, reviewed_annotation) %>%
+  summarise(Count = n(), .groups = "drop_last") %>%
+  mutate(percent = Count / sum(Count) * 100) %>%
+  ungroup()
+ggplot(composition, aes(analysis_group, percent, fill = reviewed_annotation)) +
+  geom_col() + theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+cell_ratio <- as.data.frame(prop.table(
+  table(metadata$seurat_clusters, metadata$analysis_group), margin = 2
+))
+ggplot(cell_ratio, aes(Var2, Freq)) + geom_col() +
+  facet_wrap(~Var1, scales = "free_y") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Pairwise cluster comparison and ordered expression review
+
+```{r pairwise-review, eval=FALSE}
+Idents(ec_subset) <- "seurat_clusters"
+pairwise_markers <- FindMarkers(
+  ec_subset, ident.1 = settings$contrast_ident_1,
+  ident.2 = settings$contrast_ident_2,
+  logfc.threshold = 0.25, min.pct = 0.25, test.use = "wilcox"
+)
+pairwise_markers$gene <- rownames(pairwise_markers)
+write.table(pairwise_markers, "private_outputs/pairwise_markers.tsv",
+            sep = "\t", quote = FALSE, row.names = FALSE)
+# FindMarkers produces one comparison, so do not group by a nonexistent
+# cluster column when selecting the top features.
+pairwise_top <- pairwise_markers %>%
+  slice_max(order_by = avg_log2FC, n = 20, with_ties = TRUE)
+DoHeatmap(ec_subset, features = pairwise_top$gene)
+
+ec_subset[[settings$group_column]] <- factor(
+  ec_subset[[]][[settings$group_column]], levels = settings$group_order
+)
+VlnPlot(ec_subset, features = review_features,
+        group.by = settings$group_column, pt.size = 0)
+```
+
+## Exploratory functional enrichment
+
+GO, KEGG pathway and KEGG module calls were present in the source. The gene lists
+and findings are withheld. This adaptation requires an explicit tested-gene
+background; the source's KEGG-module block referenced an undefined background.
+Enrichment depends on that background and the installed annotation versions.
+
+```{r functional-enrichment, eval=FALSE}
+genes <- readLines("local_inputs/enrichment_genes.txt")
+gene_ids <- bitr(genes, fromType = "SYMBOL", toType = "ENTREZID",
+                 OrgDb = org.Hs.eg.db)
+background <- readLines("local_inputs/enrichment_background_entrez.txt")
+go_enrich <- enrichGO(
+  gene = gene_ids$ENTREZID, universe = background,
+  OrgDb = org.Hs.eg.db, ont = "BP", pAdjustMethod = "BH", qvalueCutoff = 0.05
+)
+kegg_enrich <- enrichKEGG(
+  gene = gene_ids$ENTREZID, universe = background,
+  organism = "hsa", pvalueCutoff = 0.1
+)
+kegg_modules <- enrichMKEGG(
+  gene = gene_ids$ENTREZID, universe = background,
+  organism = "hsa", keyType = "kegg", pvalueCutoff = 0.05,
+  pAdjustMethod = "BH", minGSSize = 10, maxGSSize = 500, qvalueCutoff = 0.2
+)
+barplot(go_enrich, showCategory = 10)
+dotplot(go_enrich)
+dotplot(kegg_enrich)
+barplot(kegg_enrich, showCategory = 10)
+```
+
+## Export a subset for a separate Scanpy/scVI analysis
+
+The Matrix Market export retains genes by cells. The metadata row names are cell
+identifiers; a downstream importer must preserve this order and transpose the
+matrix if needed. These files contain private data and must not be committed.
+
+```{r matrix-market-handoff, eval=FALSE}
+raw_counts <- ec_subset[["RNA"]]$counts
+stopifnot(identical(colnames(raw_counts), rownames(ec_subset[[]])))
+writeMM(raw_counts, file = "private_outputs/subset_counts.mtx")
+write.csv(ec_subset[[]], file = "private_outputs/subset_metadata.csv")
+write.csv(rownames(ec_subset), file = "private_outputs/subset_genes.csv",
+          row.names = FALSE)
+```
+
+Package imports alone are not evidence that a method ran. In particular, the
+source imported doublet-detection packages but did not run their methods in the
+human annotation workflow above. No Harmony step is represented here.

@@ -1,42 +1,55 @@
-# My single-cell analysis workflow
+# My single-cell research portfolio
 
-**Mohua Das, PhD · R and Python · Single-cell transcriptomics**
+**Mohua Das, PhD · Cancer genomics · R and Python**
 
-I use single-cell analysis to connect experimental work with changes in gene expression and cell states. This repository brings together selected excerpts from R notebooks I wrote for my research, covering ambient-RNA correction, doublet checks, normalization, clustering, and annotation.
+I use single-cell transcriptomics to connect experimental biology with changes in gene expression and cell states. This portfolio brings together code I used and adapted across three research projects, from count-matrix preprocessing and integration to annotation, signature scoring and downstream analysis.
 
-The notebooks retain my analysis sequence and plotting patterns. I have generalized file paths and identifiers and removed study-specific annotations and embedded outputs for public sharing as the project manuscript is still is under preparation. Research data are not distributed with the code.
+The manuscripts are in preparation. These are selected, edited excerpts of my working code: private paths and identifiers have been generalized, and study-specific annotations, embedded outputs and unpublished findings have been removed. Each project has its own page and code index so the methods can be explored without access to the research data.
 
-## Selected plots from my analysis
+## Explore the projects
 
-These are real analysis figures showing numbered clusters. The biological annotations and experimental labels are not shared. The figures are archived outputs; the public notebook excerpts have not been rerun to reproduce them.
+| Project | Selected skills demonstrated | Start here |
+| --- | --- | --- |
+| **Anti-PD-L1 resistance in hepatocellular carcinoma** | SoupX, scDblFinder, Seurat, SCTransform, clustering and annotation | [Project and code](projects/hcc-pdl1-resistance/) |
+| **Reversing immune tolerance in colorectal cancer using designed beta-catenin–TCF inhibitors (CRTi)** | Scanpy, AnnData, Scrublet, Seurat, DoubletFinder, SingleR, UCell, CytoTRACE; supporting bulk RNA-seq analysis | [Project and code](projects/crti-colorectal-cancer/) |
+| **Characterisation of endothelial cells in progressive fatty liver disease in humans** | scvi-tools, Scanpy, Seurat, UCell, marker review and enrichment analysis | [Project and code](projects/fatty-liver-endothelial-cells/) |
+
+[Additional method excerpts](methods/) demonstrate **Harmony** in Python and **Seurat CCA integration** in R. These and a CytoTRACE2/Monocle3 example are kept separate because their source notebooks have mixed or unclear project context; they are not attributed to a specific project here.
+
+## Find evidence of a skill
+
+| What to inspect | Code example |
+| --- | --- |
+| Ambient-RNA correction with raw and filtered droplets | [SoupX and doublet checks](workflows/ambient-rna-and-doublets.Rmd) |
+| Python preprocessing and per-capture doublet scoring | [10x / AnnData preprocessing](projects/crti-colorectal-cancer/notebooks/01-preprocessing.ipynb) · [Scrublet](projects/crti-colorectal-cancer/notebooks/02-filtering-scrublet.ipynb) |
+| Scanpy normalization, PCA and neighborhood sensitivity | [Clustering notebook](projects/crti-colorectal-cancer/notebooks/03-clustering.ipynb) |
+| scVI model setup, training and latent representation | [Human endothelial project](projects/fatty-liver-endothelial-cells/#python-notebooks) |
+| Batch correction and integration | [Harmony](methods/harmony-subclustering.ipynb) · [Seurat CCA](methods/seurat-cca-exploration.Rmd) |
+| R annotation, signature scoring and downstream analysis | [CRTi R workflows](projects/crti-colorectal-cancer/#r-workflows) · [Endothelial R workflow](projects/fatty-liver-endothelial-cells/#r-workflow) |
+
+The [complete code index](docs/CODE_INDEX.md) distinguishes project workflows, supporting bulk analysis and the integration excerpts. Tool listings reflect implemented calls, not packages that were merely imported.
+
+## A view of my HCC analysis
+
+These two previously selected figures are real, unannotated archival outputs from the HCC project. They show numbered clusters without the biological labels or experimental comparisons. The public code has not been rerun to reproduce them.
 
 | Clustering overview | Subset reclustering |
 | --- | --- |
-| ![UMAP overview with numbered clusters](assets/research/clustering-overview.png) | ![UMAP of a subset with numbered clusters](assets/research/subset-reclustering.png) |
+| ![HCC analysis: UMAP with numbered clusters](assets/research/clustering-overview.png) | ![HCC analysis: subset UMAP with numbered clusters](assets/research/subset-reclustering.png) |
 
-For the normalization, clustering, and `DimPlot` code, see my [clustering notebook](workflows/sctransform-and-clustering.Rmd). The [annotation notebook](workflows/broad-annotation.Rmd) shows how I work from cluster markers to reviewed labels.
+[Explore the HCC notebooks and figure context](projects/hcc-pdl1-resistance/). No figures or data from the other two projects are included.
 
-## Start with my R notebooks
+## Reading the research code
 
-| Notebook | What I worked on |
-| --- | --- |
-| [Ambient RNA and doublet checks](workflows/ambient-rna-and-doublets.Rmd) | Loading raw and filtered droplet matrices, running SoupX with provisional Seurat clusters, combining corrected samples, and checking doublets |
-| [Normalization and clustering](workflows/sctransform-and-clustering.Rmd) | Comparing log normalization with SCTransform, reviewing PCs, building neighbor graphs, and visualizing clusters with UMAP |
-| [Broad annotation and composition](workflows/broad-annotation.Rmd) | Ranking cluster markers, making heatmaps, assigning reviewed labels, plotting cell proportions, and preparing subsets for further analysis |
+The research notebooks require private count matrices, AnnData/Seurat objects or configuration files described in each excerpt. They are code portfolios, not self-contained reproductions of the studies. Jupyter outputs and execution counts are cleared; R Markdown analysis chunks are disabled by default. Package compatibility and numerical results have not been revalidated against the withheld inputs.
 
-These are edited excerpts of my analysis code. They require local count matrices or Seurat objects and are intended to be read alongside their input notes. They do not include the underlying experiment or its biological conclusions.
+The edits retain substantive analysis steps and plotting code. Study-specific marker panels and annotation maps are supplied through private inputs instead of being embedded in the public files. Existing source and tutorial credits are retained where present.
 
-## How I approach the analysis
+[Provenance and sharing scope](docs/DATA_PROVENANCE.md) · [Validation record](docs/VALIDATION.md)
 
-**Start with the count matrices.** My SoupX workflow uses both raw droplets and the filtered matrix. I generate provisional clusters in Seurat, pass those clusters to SoupX, and export the corrected matrix for downstream work.
+## Runnable Python companion
 
-**Review preprocessing choices.** My notebooks include doublet checks and both log-normalization and SCTransform branches. I inspect PCA and UMAP views while working through dimensionality and clustering choices. The parameters shown in the excerpts need reassessment for a different input.
-
-**Use markers to review clusters.** I rank features within clusters, inspect heatmaps, then apply a reviewed annotation map. I also use grouped summaries and proportion plots to examine the composition of the resulting object. The public notebook accepts an external annotation map because the original biological labels are not part of this release.
-
-## Python / Scanpy companion
-
-I have also included a separate, runnable Python companion for QC, normalization, PCA, UMAP, Leiden clustering, and feature ranking. This companion was added for the portfolio and uses independently simulated cells and genes. It is separate from the research notebooks above.
+A separate Python/Scanpy example uses independently simulated data to demonstrate a complete, executable workflow. It was added for the portfolio and is distinct from the research excerpts above.
 
 ```bash
 python -m venv .venv
@@ -47,29 +60,12 @@ python scripts/scanpy_workflow.py --input generated/synthetic.h5ad --output outp
 python -m pytest -q
 ```
 
-Use Python 3.12. On Windows, activate the environment with `.venv\Scripts\Activate.ps1` in PowerShell. Output directories must be empty; choose a new `--output` path for another run.
+Use Python 3.12. On Windows, activate with `.venv\Scripts\Activate.ps1` in PowerShell. Output directories must be empty; choose a fresh output path for another run. The eight Python checks passed for this companion. Its pinned requirements do not define a tested environment for the research notebooks.
 
-The companion demonstrates AnnData, sparse matrices, pandas summaries, count-layer preservation, and reusable command-line scripts. Its eight Python checks passed. [Full companion instructions](docs/SYNTHETIC_EXAMPLE.md) include the separate synthetic SoupX and Seurat examples.
-
-<details>
-<summary>View the synthetic Scanpy example</summary>
-
-![Synthetic Scanpy example, separate from the research notebooks](assets/synthetic_umap.png)
-
-Every cell, gene, and label in this preview is artificial. It does not show a research result.
-
-</details>
-
-## Reading and using the code
-
-- The R notebooks contain no embedded execution output. Their chunks are disabled by default, and the edited excerpts have not been rerun against the private inputs.
-- [Data and code provenance](docs/DATA_PROVENANCE.md) explains which files come from my notebooks and which are new examples.
-- [Validation notes](docs/VALIDATION.md) distinguish the executed Python checks from the R code review.
-- The original research data, presentation, sample metadata, and biological findings are not included.
+[Companion instructions and synthetic preview](docs/SYNTHETIC_EXAMPLE.md)
 
 ## About me
 
-My background combines medicinal chemistry, chemical biology, and cancer genomics. I am interested in research that connects computational analysis with experimental biology.
+My background combines medicinal chemistry, chemical biology and cancer genomics. I am interested in research that connects computational analysis with experimental biology.
 
 [GitHub profile](https://github.com/MD-Chem) · [ORCID](https://orcid.org/0000-0002-8891-6333) · [LinkedIn](https://www.linkedin.com/in/dmohua/)
-

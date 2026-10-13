@@ -1,0 +1,256 @@
+---
+title: "Myeloid processing and annotation"
+output: html_notebook
+---
+
+Source-derived, edited excerpts from my research notebook. The stages, Seurat
+calls, plotting idioms and ordinary analysis settings below are retained from
+that notebook. Study identifiers, marker panels, cluster assignments, biological
+comparisons and all results have been removed. This code has not been rerun.
+
+Knitting displays code only. Running chunks manually requires authorized private
+inputs and can create private outputs; no input objects or results are included.
+Run from this project directory. The input must be a Seurat v5 object with an RNA
+Assay5 and a single counts layer. Settings must supply metadata using the neutral
+field `analysis_group`; its values and relationship to the study are not provided.
+
+```{r setup, include=FALSE, eval=TRUE}
+knitr::opts_chunk$set(eval = FALSE, echo = TRUE, cache = FALSE)
+```
+
+## Libraries and display palette
+
+```{r libraries}
+library(tidyverse)
+library(dplyr)
+library(Seurat)
+library(patchwork)
+library(ggplot2)
+library(Matrix)
+set.seed(1234)
+
+colors <- c('#1f77b4', '#ff7f0e', '#279e68', '#d62728', '#aa40fc', '#8c564b',
+            '#e377c2', '#b5bd61', '#17becf', '#aec7e8', '#ffbb78', '#98df8a',
+            '#ff9896', '#c5b0d5', '#c49c94', '#f7b6d2', '#dbdb8d', '#9edae5',
+            '#ad494a', '#8c6d31', '#FF34FF', '#763568', '#63FFAC', '#B79762',
+            '#004D43', '#002dff', '#997D87', '#5A0007', '#809693', '#6A3A4C',
+            '#1B4400', '#4FC601', '#3B5DFF', '#4A3B53', '#FF2F80', '#61615A',
+            '#BA0900', '#6B7900', '#00C2A0', '#FFAA92', '#FF90C9', '#B903AA',
+            '#D16100', '#DDEFFF', '#000035', '#7B4F4B', '#A1C299', '#300018',
+            '#0AA6D8', '#013349', '#00846F', '#372101', '#FFB500', '#C2FFED',
+            '#A079BF', '#CC0744', 'yellow', 'green', 'magenta', 'red')
+```
+
+## Required private inputs
+
+`myeloid-settings.rds` is an unprovided list containing `plot_features`,
+`marker_panel`, `exclude_clusters`, `contrast_a`, `contrast_b` and
+`cluster_annotations`. The annotation vector must be named by cluster ID.
+These inputs replace the source notebook's study-specific choices; none can be
+reconstructed from this excerpt. The reference must match the input organism and
+feature naming, with a `label.main` column for SingleR.
+
+```{r private-inputs}
+myeloid <- readRDS("data/private/myeloid.rds")
+analysis_settings <- readRDS("data/private/myeloid-settings.rds")
+dir.create("outputs/private", recursive = TRUE, showWarnings = FALSE)
+DefaultAssay(myeloid) <- "RNA"
+stopifnot("analysis_group" %in% colnames(myeloid@meta.data))
+```
+
+## Re-normalization and principal components
+
+The layer cleanup retains the original Seurat v5 approach. The numerical choices
+are analysis settings, not reported feature counts, sample counts or results.
+
+```{r preprocessing}
+if (!is.null(myeloid[["RNA"]]@layers$data)) {
+  print("data exists and will be removed.")
+} else {
+  print("No existing data found.")
+}
+myeloid[["RNA"]]@layers$scale.data <- NULL
+myeloid[["RNA"]]@layers$data <- NULL
+myeloid <- NormalizeData(myeloid)
+myeloid <- FindVariableFeatures(myeloid, selection.method = "vst", nfeatures = 2000)
+myeloid <- ScaleData(myeloid)
+myeloid <- RunPCA(myeloid, npcs = 100)
+ElbowPlot(myeloid, n = 50)
+DimHeatmap(myeloid, dims = 20:30, cells = 200, balanced = TRUE)
+```
+
+## Neighbors, clustering and UMAP
+
+```{r clustering}
+myeloidpc25 <- myeloid
+myeloidpc25 <- FindNeighbors(myeloidpc25, dims = 1:25, verbose = FALSE)
+myeloidpc25 <- FindClusters(myeloidpc25, verbose = FALSE, resolution = 0.3)
+myeloidpc25 <- RunUMAP(myeloidpc25, dims = 1:25, min.dist = 1,
+                       n.neighbors = 15, verbose = FALSE)
+pdf("outputs/private/myeloid-clusters.pdf", width = 9, height = 4)
+DimPlot(myeloidpc25, label = TRUE, reduction = "umap", cols = colors,
+        split.by = "analysis_group", pt.size = 0.5)
+dev.off()
+VlnPlot(myeloidpc25, features = analysis_settings$plot_features, cols = colors,
+        group.by = "analysis_group", pt.size = 0)
+FeaturePlot(myeloidpc25, features = analysis_settings$plot_features,
+            cols = c("lightgrey", "red"), order = TRUE,
+            split.by = "analysis_group")
+```
+
+## Reference annotation and panel review
+
+```{r reference-annotation}
+library(SingleR)
+ref <- readRDS("data/private/reference.rds")
+results <- SingleR(test = as.SingleCellExperiment(myeloidpc25),
+                   ref = ref, labels = ref$label.main)
+myeloidpc25$singlr_labels <- results$labels
+pdf("outputs/private/reference-annotation.pdf", width = 8, height = 6)
+DimPlot(myeloidpc25, reduction = "umap", cols = colors,
+        group.by = "singlr_labels", label = TRUE)
+dev.off()
+table(myeloidpc25@meta.data$singlr_labels)
+
+myeloidbaseddegs <- analysis_settings$marker_panel
+DotPlot(myeloidpc25, features = myeloidbaseddegs, dot.min = 0.1,
+        col.min = 0.1, group.by = "seurat_clusters", cluster.idents = TRUE) +
+  theme(axis.text.x = element_text(angle = 90),
+        panel.grid = element_line(color = "grey", size = 0.01, linetype = 2))
+```
+
+## Reviewed subsetting
+
+The original notebook excluded selected clusters and exported their barcodes.
+The selection and its biological interpretation are private inputs here.
+
+```{r reviewed-subsetting}
+Idents(myeloidpc25) <- "seurat_clusters"
+excluded_cells <- subset(myeloidpc25, idents = analysis_settings$exclude_clusters)
+myeloidpc25 <- subset(myeloidpc25, idents = analysis_settings$exclude_clusters,
+                     invert = TRUE)
+excluded_barcodes <- rownames(excluded_cells@meta.data)
+write.table(excluded_barcodes, "outputs/private/excluded-barcodes.txt",
+            quote = FALSE, sep = "\t", col.names = FALSE, row.names = FALSE)
+myeloid <- myeloidpc25
+```
+
+## Cluster marker ranking
+
+These calls demonstrate exploratory cell-level marker ranking. They do not
+provide replicate-aware treatment inference or publish any biological findings.
+
+```{r cluster-markers}
+sc <- myeloid
+Idents(sc) <- "seurat_clusters"
+sc.markers <- FindAllMarkers(sc, min.pct = 0.25, logfc.threshold = 0.25)
+write.table(sc.markers, "outputs/private/cluster-markers.tsv",
+            quote = FALSE, sep = "\t", col.names = TRUE, row.names = FALSE)
+sc.markers <- read_tsv("outputs/private/cluster-markers.tsv")
+sc.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 20, wt = avg_log2FC) -> top20
+pdf("outputs/private/cluster-marker-heatmap.pdf", width = 12, height = 25)
+DoHeatmap(sc, features = top20$gene)
+dev.off()
+```
+
+## Interchange exports
+
+This stage exports counts, metadata and coordinates for downstream analysis.
+It does not implement RNA-velocity inference. Exported matrices can be sensitive
+even when their filenames are generic and must stay private.
+
+```{r interchange-exports}
+myeloid$barcode <- colnames(myeloid)
+myeloid$UMAP_1 <- myeloid@reductions$umap@cell.embeddings[, 1]
+myeloid$UMAP_2 <- myeloid@reductions$umap@cell.embeddings[, 2]
+write.csv(myeloid@meta.data, file = "outputs/private/myeloid-metadata.csv",
+          quote = FALSE, row.names = FALSE)
+counts_matrix <- GetAssayData(myeloid, assay = "RNA", layer = "counts")
+writeMM(counts_matrix, "outputs/private/myeloid-counts.mtx")
+write.csv(myeloid@reductions[["pca"]]@cell.embeddings,
+          file = "outputs/private/myeloid-pca.csv", quote = FALSE, row.names = FALSE)
+write.table(data.frame(gene = rownames(counts_matrix)),
+            file = "outputs/private/myeloid-gene-names.csv",
+            quote = FALSE, row.names = FALSE, col.names = FALSE)
+```
+
+## Exploratory group and selected-cluster contrasts
+
+```{r exploratory-contrasts}
+sc <- myeloid
+Idents(sc) <- "analysis_group"
+sc.markers <- FindAllMarkers(sc, min.pct = 0.25, logfc.threshold = 0.25)
+write.csv(sc.markers, "outputs/private/group-markers.csv")
+sc.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 20, wt = avg_log2FC) -> top20
+DoHeatmap(sc, features = top20$gene)
+
+Idents(myeloid) <- "seurat_clusters"
+selected_contrast <- FindMarkers(
+  object = myeloid,
+  ident.1 = analysis_settings$contrast_a,
+  ident.2 = analysis_settings$contrast_b,
+  logfc.threshold = 0.25,
+  min.pct = 0.25
+)
+write.csv(selected_contrast, "outputs/private/selected-cluster-contrast.csv")
+```
+
+## Reviewed labels and composition
+
+```{r reviewed-labels}
+Idents(myeloid) <- "seurat_clusters"
+broad.cluster.ids <- analysis_settings$cluster_annotations
+stopifnot(all(levels(myeloid) %in% names(broad.cluster.ids)))
+broad.cluster.ids <- broad.cluster.ids[levels(myeloid)]
+myeloid <- RenameIdents(myeloid, broad.cluster.ids)
+myeloid$broadtype <- Idents(myeloid)
+Idents(myeloid) <- "broadtype"
+pdf("outputs/private/annotated-myeloid.pdf", width = 9, height = 4)
+DimPlot(myeloid, reduction = "umap", cols = colors,
+        split.by = "analysis_group", pt.size = 0.5)
+dev.off()
+```
+
+```{r composition}
+Cellratio <- prop.table(table(myeloid$broadtype, myeloid$analysis_group), margin = 2)
+Cellratio <- as.data.frame(Cellratio)
+colourCount <- length(unique(Cellratio$Var1))
+pdf("outputs/private/myeloid-composition.pdf", width = 15, height = 8)
+ggplot(Cellratio, aes(x = Var2, y = Freq)) +
+  geom_bar(stat = "identity", fill = "forest green") +
+  facet_wrap(~Var1, ncol = 6, scales = "free_y") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 0.8))
+dev.off()
+```
+
+## CytoTRACE scoring
+
+This is the original CytoTRACE stage, distinct from CytoTRACE2 in the epithelial
+notebook. Dense conversion requires sufficient memory; expression identifiers and
+the installed package version need to be checked before any private execution.
+
+```{r cytotrace}
+library(CytoTRACE)
+sc <- myeloid
+cyto <- as.matrix(GetAssayData(sc, assay = "RNA", layer = "counts"))
+results <- CytoTRACE(cyto)
+cytotrace_scores <- as.data.frame(results$CytoTRACE)
+myeloid <- AddMetaData(myeloid, metadata = cytotrace_scores,
+                      col.name = "CytoTRACE_score")
+pdf("outputs/private/myeloid-cytotrace.pdf", width = 5, height = 4)
+FeaturePlot(myeloid, features = "CytoTRACE_score", pt.size = 1) &
+  scale_color_viridis_c(option = "C")
+dev.off()
+Idents(myeloid) <- "seurat_clusters"
+VlnPlot(myeloid, "CytoTRACE_score", cols = colors, pt.size = 0) +
+  stat_summary(fun = median, geom = "point", size = 6, colour = "black", shape = 95)
+saveRDS(myeloid, "outputs/private/myeloid-annotated.rds")
+```
+
+Small consistency edits connect the cleaned object to downstream chunks, correct
+the UMAP neighbor argument spelling and use a layer accessor for counts. No
+claimed findings, validated labels or numerical analysis results accompany them.

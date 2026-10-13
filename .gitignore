@@ -33,3 +33,6 @@ outputs/
 *.Rds
 *.rda
 
+# Private inputs and outputs used by the research excerpts
+local_inputs/
+private_outputs/
