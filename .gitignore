@@ -26,3 +26,10 @@ outputs/
 .env.*
 *.key
 *.pem
+
+# Rendered research notebooks and local serialized objects
+*.nb.html
+*.html
+*.Rds
+*.rda
+

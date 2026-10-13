@@ -1,0 +1,211 @@
+---
+title: "Ambient RNA correction and doublet review"
+output: html_notebook
+---
+
+These are edited excerpts from my analysis notebook. I have retained the
+processing sequence and ordinary analysis settings, while removing project
+identifiers, marker panels, recorded outputs, and interpretations.
+No count matrices or research results are included.
+
+The excerpts have not been rerun: the required inputs are private. Chunks are
+disabled for knitting so that the public notebook displays code only. To use
+them locally, supply the inputs below and run the relevant chunks in order.
+The retained QC thresholds, number of PCs, and clustering resolution require
+review for the dataset being analysed; they are not universal defaults.
+
+```{r setup, include=FALSE, eval=TRUE}
+knitr::opts_chunk$set(eval = FALSE, echo = TRUE)
+```
+
+## Libraries and local inputs
+
+Use Seurat v5 for the `JoinLayers` block. The private sample manifest has columns
+`sample_id` and `relative_counts_dir`: the latter identifies a corrected matrix
+folder relative to `data/private/`. The manifest itself is not distributed.
+Each sample ID must identify an independent capture for the doublet step.
+
+```{r libraries}
+library(tidyverse)
+library(dplyr)
+library(Seurat)
+library(patchwork)
+library(ggplot2)
+library(sctransform)
+library(scDblFinder)
+library(DropletUtils)
+library(SoupX)
+library(Matrix)
+
+set.seed(1234)
+input_root <- "data/private"
+output_root <- "outputs/private"
+dir.create(output_root, recursive = TRUE, showWarnings = FALSE)
+
+colors <- c('#1f77b4', '#ff7f0e', '#279e68', '#d62728', '#aa40fc', '#8c564b',
+            '#e377c2', '#b5bd61', '#17becf', '#aec7e8', '#ffbb78', '#98df8a',
+            '#ff9896', '#c5b0d5', '#c49c94', '#f7b6d2', '#dbdb8d', '#9edae5',
+            '#ad494a', '#8c6d31', '#FF34FF', '#763568', '#63FFAC', '#B79762',
+            '#004D43', '#002dff', '#997D87', '#5A0007', '#809693', '#6A3A4C',
+            '#1B4400', '#4FC601', '#3B5DFF', '#4A3B53', '#FF2F80', '#61615A',
+            '#BA0900', '#6B7900', '#00C2A0', '#FFAA92', '#FF90C9', '#B903AA',
+            '#D16100', '#DDEFFF', '#000035', '#7B4F4B', '#A1C299', '#300018',
+            '#0AA6D8', '#013349', '#00846F', '#372101', '#FFB500', '#C2FFED',
+            '#A079BF', '#CC0744', 'yellow', 'green', 'magenta', 'red')
+```
+
+## SoupX for one capture
+
+The raw matrix includes background droplets; the filtered matrix contains the
+cell-containing droplets from the same capture. Repeat this block per capture
+before building the corrected-matrix manifest. Input and output folder names
+below are placeholders.
+
+```{r load-counts}
+raw_matrix <- Read10X(data.dir = file.path(input_root, "capture", "raw_feature_bc_matrix"))
+filt_matrix <- Read10X(data.dir = file.path(input_root, "capture", "filtered_feature_bc_matrix"))
+stopifnot(identical(rownames(raw_matrix), rownames(filt_matrix)))
+stopifnot(all(colnames(filt_matrix) %in% colnames(raw_matrix)))
+
+# Create soup channel.
+sc <- SoupChannel(raw_matrix, filt_matrix)
+
+# Cluster the filtered object before contamination estimation.
+capture_obj <- CreateSeuratObject(counts = filt_matrix)
+capture_obj <- NormalizeData(capture_obj)
+capture_obj <- FindVariableFeatures(capture_obj)
+capture_obj <- ScaleData(capture_obj)
+capture_obj <- RunPCA(capture_obj)
+capture_obj <- FindNeighbors(capture_obj)
+capture_obj <- FindClusters(capture_obj, resolution = 0.5)
+
+clusters <- capture_obj@meta.data$seurat_clusters
+# Editorial cleanup: attach barcode names explicitly.
+names(clusters) <- colnames(capture_obj)
+sc <- setClusters(sc, clusters)
+
+# Estimate contamination and adjust the matrix.
+sc <- autoEstCont(sc)
+adj_matrix <- adjustCounts(sc)
+
+# Editorial cleanup: use the exported DropletUtils interface.
+DropletUtils::write10xCounts(
+  file.path(output_root, "corrected_capture"), adj_matrix
+)
+```
+
+`autoEstCont` requires appropriate expression structure and background droplets.
+An estimation failure should be investigated rather than replaced by an
+unreported fixed contamination fraction. Corrected matrices are local outputs.
+
+## Combine corrected matrices
+
+Place the corrected-matrix folders under `data/private/` before listing them in
+the manifest. Each manifest row supplies the relative folder and capture ID.
+
+```{r combine-captures}
+sample_manifest <- read.csv(file.path(input_root, "sample_manifest.csv"),
+                            stringsAsFactors = FALSE)
+stopifnot(all(c("sample_id", "relative_counts_dir") %in% names(sample_manifest)))
+stopifnot(nrow(sample_manifest) > 0, !anyDuplicated(sample_manifest$sample_id))
+data_paths <- file.path(input_root, sample_manifest$relative_counts_dir)
+sample_names <- sample_manifest$sample_id
+
+seurat_list <- list()
+for (i in seq_along(data_paths)) {
+  mtx <- Read10X(data.dir = data_paths[[i]])
+  seu <- CreateSeuratObject(counts = mtx, project = sample_names[[i]],
+                            min.cells = 30, min.features = 200)
+  # Editorial cleanup: store capture identity before merging.
+  seu$Samples <- sample_names[[i]]
+  seurat_list[[i]] <- seu
+}
+
+if (length(seurat_list) > 1) {
+  merged_seurat <- merge(seurat_list[[1]], y = seurat_list[-1],
+                         add.cell.ids = sample_names, project = "CorrectedCounts")
+} else {
+  merged_seurat <- seurat_list[[1]]
+}
+merged_seurat[["RNA"]] <- JoinLayers(merged_seurat[["RNA"]])
+```
+
+The manifest replaces the original sample list. Barcode prefixes and the
+`Samples` column replace the original sample-label reconstruction after merging.
+No sample identities, number of captures, or group assignments are encoded here.
+
+## QC and a preliminary embedding
+
+The two prefixes in the mitochondrial expression pattern accommodate common
+gene-name conventions; check that the pattern matches the intended annotation.
+The notebook's feature-count and percentage thresholds are retained as code
+settings, without the original cell counts or decisions based on those counts.
+
+```{r quality-control}
+merged_seurat[["percent.mt"]] <- PercentageFeatureSet(
+  merged_seurat, pattern = "^MT-|^mt-"
+)
+VlnPlot(merged_seurat, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"),
+        group.by = "Samples", ncol = 3, pt.size = 0)
+
+analysis_obj <- subset(merged_seurat,
+  subset = nFeature_RNA > 200 & nFeature_RNA < 10000 & percent.mt < 10
+)
+analysis_obj <- NormalizeData(analysis_obj)
+analysis_obj <- FindVariableFeatures(analysis_obj, selection.method = "vst", nfeatures = 2000)
+analysis_obj <- ScaleData(analysis_obj)
+analysis_obj <- RunPCA(analysis_obj, npcs = 100)
+ElbowPlot(analysis_obj, ndims = 50)
+
+# One of the dimensionality choices explored in the source notebook.
+# Review dimensionality and resolution for a new dataset before using them.
+analysis_obj <- FindNeighbors(analysis_obj, dims = 1:15, verbose = FALSE)
+analysis_obj <- FindClusters(analysis_obj, verbose = FALSE, resolution = 0.5)
+analysis_obj <- RunUMAP(analysis_obj, dims = 1:15, verbose = FALSE)
+DimPlot(analysis_obj, label = TRUE, reduction = "umap", cols = colors, pt.size = 0.2)
+DimPlot(analysis_obj, reduction = "umap", cols = colors,
+        group.by = "Samples", pt.size = 0.2)
+```
+
+This excerpt assumes enough cells and variable features for the requested PCs.
+The original separate feature-removal and biological cluster-cleanup decisions
+are omitted. The embedding above is for doublet review; it should be recomputed
+after filtering if used for downstream interpretation.
+
+## scDblFinder by capture
+
+The sample argument defines independent captures. `clusters = TRUE` requests
+clustering within the doublet workflow; it does not supply biological labels.
+
+```{r doublet-review}
+# Proxy object and conversion to SingleCellExperiment.
+checkdb <- analysis_obj
+rna <- as.SingleCellExperiment(x = checkdb, assay = "RNA")
+xtc <- scDblFinder(rna, samples = "Samples", clusters = TRUE)
+
+# Editorial cleanup: use the public accessor and align calls by barcode.
+doublet_calls <- data.frame(doublet = xtc$scDblFinder.class,
+                            row.names = colnames(xtc))
+analysis_obj$dbr <- doublet_calls[colnames(analysis_obj), "doublet"]
+analysis_obj@meta.data <- analysis_obj@meta.data %>%
+  dplyr::rename(scDBLFinder = dbr)
+analysis_obj$scDBLFinder <- factor(analysis_obj$scDBLFinder,
+                                  levels = c("doublet", "singlet"))
+
+table(analysis_obj$scDBLFinder)
+DimPlot(analysis_obj, reduction = "umap", group.by = "scDBLFinder",
+        cols = colors, label = TRUE, pt.size = 0.01)
+
+Idents(analysis_obj) <- "scDBLFinder"
+singlets <- subset(analysis_obj, idents = "singlet")
+saveRDS(singlets, file = file.path(output_root, "singlets.rds"))
+```
+
+No doublet counts, fitted contamination estimates, or plotted outputs are
+included. The exploratory DoubletFinder branch and its manually selected
+parameters are omitted. Normalization, PCA, clustering, and UMAP need to be
+revisited on the retained cells before broad annotation.
+
+```{r record-environment}
+capture.output(sessionInfo(), file = file.path(output_root, "sessionInfo.txt"))
+```

@@ -1,0 +1,169 @@
+---
+title: "Broad annotation and composition review"
+output: html_notebook
+---
+
+These excerpts retain the marker-review, identity-renaming, plotting, and
+subsetting code from my analysis notebook. The original biological labels,
+marker panels, sample identities, numerical outputs, and conclusions have been
+removed. There are no bundled data or rendered research figures.
+
+The edited excerpts have not been rerun because the inputs are private. Code
+chunks are disabled for knitting; run them locally only after supplying the
+required inputs. This is an excerpt of an analysis workflow, not a complete
+reproduction of the underlying study.
+
+```{r setup, include=FALSE, eval=TRUE}
+knitr::opts_chunk$set(eval = FALSE, echo = TRUE)
+```
+
+## Read the preprocessed object
+
+The input object should have completed QC, doublet review, normalization, PCA,
+clustering, and UMAP. It must contain `seurat_clusters` and `Samples` metadata,
+and an `SCT` assay with scaled expression for the heatmap. If it contains multiple
+SCT models, prepare the object for marker testing before using this excerpt.
+
+```{r libraries-and-object}
+library(tidyverse)
+library(dplyr)
+library(Seurat)
+library(patchwork)
+library(ggplot2)
+library(sctransform)
+
+set.seed(1234)
+input_root <- "data/private"
+output_root <- "outputs/private"
+dir.create(output_root, recursive = TRUE, showWarnings = FALSE)
+
+colors <- c('#1f77b4', '#ff7f0e', '#279e68', '#d62728', '#aa40fc', '#8c564b',
+            '#e377c2', '#b5bd61', '#17becf', '#aec7e8', '#ffbb78', '#98df8a',
+            '#ff9896', '#c5b0d5', '#c49c94', '#f7b6d2', '#dbdb8d', '#9edae5',
+            '#ad494a', '#8c6d31', '#FF34FF', '#763568', '#63FFAC', '#B79762',
+            '#004D43', '#002dff', '#997D87', '#5A0007', '#809693', '#6A3A4C',
+            '#1B4400', '#4FC601', '#3B5DFF', '#4A3B53', '#FF2F80', '#61615A',
+            '#BA0900', '#6B7900', '#00C2A0', '#FFAA92', '#FF90C9', '#B903AA',
+            '#D16100', '#DDEFFF', '#000035', '#7B4F4B', '#A1C299', '#300018',
+            '#0AA6D8', '#013349', '#00846F', '#372101', '#FFB500', '#C2FFED',
+            '#A079BF', '#CC0744', 'yellow', 'green', 'magenta', 'red')
+
+analysis_obj <- readRDS(file.path(input_root, "preprocessed_object.rds"))
+stopifnot(all(c("seurat_clusters", "Samples") %in% names(analysis_obj@meta.data)))
+DefaultAssay(analysis_obj) <- "SCT"
+Idents(analysis_obj) <- "seurat_clusters"
+```
+
+## Rank and inspect cluster markers
+
+The marker thresholds and top-gene selection below are retained from my
+notebook. They should be reviewed for the data being analysed. These are
+exploratory comparisons between clusters, not replicate-level tests of an
+experimental condition.
+
+```{r cluster-markers}
+object.markers <- FindAllMarkers(analysis_obj, min.pct = 0.25, logfc.threshold = 0.25)
+write.table(object.markers, file.path(output_root, "cluster_markers.tsv"),
+             quote = FALSE, sep = "\t", col.names = TRUE, row.names = FALSE)
+object.markers <- read.csv(file.path(output_root, "cluster_markers.tsv"), sep = "\t")
+
+object.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 20, wt = avg_log2FC) -> top20
+
+pdf(file.path(output_root, "cluster_marker_heatmap.pdf"), width = 15, height = 25)
+DoHeatmap(analysis_obj, features = top20$gene)
+dev.off()
+```
+
+The marker table and heatmap remain private outputs. `top_n` is retained from
+the original code; tied values may return more than twenty genes per cluster.
+Check that the selected genes are present in the assay's scaled expression.
+
+## Apply reviewed broad annotations
+
+The original annotation vector is replaced with a private mapping file containing
+`cluster` and `broad_label` columns. No labels or cluster-to-label assignments are
+distributed. Labels must be reviewed against expression and other evidence;
+renaming a cluster does not itself validate its identity.
+
+```{r apply-annotations}
+Idents(analysis_obj) <- "seurat_clusters"
+annotation <- read.csv(file.path(input_root, "reviewed_annotation.csv"),
+                        stringsAsFactors = FALSE, colClasses = "character")
+stopifnot(all(c("cluster", "broad_label") %in% names(annotation)))
+stopifnot(!anyDuplicated(annotation$cluster), !anyNA(annotation$broad_label))
+stopifnot(setequal(annotation$cluster, levels(analysis_obj)))
+
+# Preserve the source notebook's named-vector / RenameIdents sequence.
+broad.cluster.ids <- annotation$broad_label[match(levels(analysis_obj), annotation$cluster)]
+names(broad.cluster.ids) <- levels(analysis_obj)
+analysis_obj <- RenameIdents(analysis_obj, broad.cluster.ids)
+analysis_obj$broadtype <- Idents(analysis_obj)
+
+pdf(file.path(output_root, "broad_annotation_umap.pdf"), width = 8, height = 6)
+DimPlot(analysis_obj, label = TRUE, reduction = "umap", cols = colors, pt.size = 0.2)
+dev.off()
+```
+
+## Inspect a privately supplied feature panel
+
+The feature list is one gene identifier per line in a local text file. It replaces
+the project-specific panel; no substitute biological panel has been invented.
+
+```{r feature-review}
+review_features <- readLines(file.path(input_root, "review_features.txt"))
+stopifnot(length(review_features) > 0, all(review_features %in% rownames(analysis_obj)))
+pdf(file.path(output_root, "feature_review_violin.pdf"), height = 15, width = 20)
+VlnPlot(analysis_obj, features = review_features, cols = colors,
+        group.by = "Samples", pt.size = 0)
+dev.off()
+```
+
+## Compare within-sample composition
+
+These are descriptive proportions among the retained cells. They do not, by
+themselves, establish differences between experimental conditions or correct for
+capture, filtering, and annotation effects.
+
+```{r composition-summary}
+DF <- analysis_obj@meta.data
+DF <- DF %>% group_by(Samples, broadtype) %>%
+  summarise(Count = n(), .groups = "drop_last") %>%
+  mutate(C = sum(Count)) %>%
+  mutate(percent = Count / C * 100)
+
+pdf(file.path(output_root, "broad_annotation_composition.pdf"), width = 14, height = 10)
+ggplot(DF, aes(x = Samples, y = percent, fill = broadtype)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = colors) +
+  theme_classic() +
+  theme(text = element_text(size = 25),
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+dev.off()
+
+Cellratio <- prop.table(table(analysis_obj$broadtype, analysis_obj$Samples), margin = 2)
+Cellratio <- as.data.frame(Cellratio)
+
+pdf(file.path(output_root, "composition_by_annotation.pdf"), width = 15, height = 12)
+ggplot(Cellratio, aes(x = Var2, y = Freq)) +
+  geom_bar(stat = 'identity', fill = "forest green") +
+  facet_wrap(~Var1, ncol = 5, scales = "free_y") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 0.8))
+dev.off()
+```
+
+## Retain a reviewed subset
+
+The original lists of biological groups are not included. Supply selected labels
+locally, one per line, to use the same identity-based subsetting pattern.
+
+```{r subset-and-save}
+Idents(analysis_obj) <- "broadtype"
+selected_groups <- readLines(file.path(input_root, "subset_labels.txt"))
+stopifnot(length(selected_groups) > 0, all(selected_groups %in% levels(analysis_obj)))
+selected_obj <- subset(analysis_obj, idents = selected_groups)
+saveRDS(selected_obj, file = file.path(output_root, "selected_subset.rds"))
+saveRDS(analysis_obj, file = file.path(output_root, "annotated_object.rds"))
+capture.output(sessionInfo(), file = file.path(output_root, "sessionInfo.txt"))
+```

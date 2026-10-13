@@ -1,5 +1,7 @@
 # Validation record
 
+The executed checks below apply to the separate synthetic companion in `scripts/` and `tests/`. They do not validate the research excerpts in `workflows/`.
+
 ## Executed Python example
 
 The default generator and Scanpy command were run with Python 3.12.14 and the direct dependency versions listed in `requirements.txt`.
@@ -20,7 +22,7 @@ The interoperability test checks parsing, identifier alignment, provenance, inva
 
 ## R validation boundary
 
-The R scripts received source review and delimiter/quote checks. R was unavailable in the preparation environment, so the scripts were not parsed by R or executed with Seurat, SoupX, or scDblFinder. Their numerical output and package compatibility remain unverified.
+The synthetic R scripts received source review and delimiter/quote checks. The research R notebooks in `workflows/` are selected, edited excerpts and have not been rerun with their required private inputs. R was unavailable in the preparation environment, so the scripts were not parsed by R or executed with Seurat, SoupX, or scDblFinder. Their numerical output and package compatibility remain unverified.
 
 When run, each R example records its parameters and `sessionInfo()`. The installer selects available packages; it does not pin a tested R environment. No R-generated result is committed or presented as verified.
 
@@ -33,3 +35,4 @@ python -m pytest -q tests/test_python.py
 ```
 
 To reproduce the preview, run the generator and Scanpy commands in the README using fresh output directories. Small numerical or layout differences may occur across platforms and transitive dependency versions.
+

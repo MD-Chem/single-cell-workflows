@@ -1,0 +1,142 @@
+---
+title: "Normalization, SCTransform and clustering"
+output: html_notebook
+params:
+  run_analysis: false
+  input_rds: "data/private/input_seurat.rds"
+  output_dir: "data/private/results"
+---
+
+This notebook contains cleaned excerpts from my original R analysis. The
+normalization, clustering and marker-ranking code is retained, with neutral
+object names and local file paths. Input data, results, sample information,
+feature panels and biological annotations are not included.
+
+The private input is a Seurat object with an RNA assay. Dependencies are Seurat,
+sctransform, dplyr, knitr and rmarkdown. The RNA-layer reset follows the Seurat v5
+object structure used in the original notebook.
+
+Execution is disabled by default. This edited version has not been rerun with
+the unavailable input data. Algorithm settings below are illustrative and need
+reassessment for other inputs; they are not recommendations for every dataset.
+Any locally generated tables and figures belong in the private output directory.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  eval = isTRUE(params$run_analysis),
+  echo = TRUE, results = "hide", fig.keep = "none",
+  message = FALSE, warning = FALSE
+)
+```
+
+```{r libraries-and-input}
+# loading libraries
+library(dplyr)
+library(Seurat)
+library(sctransform)
+
+set.seed(1234)
+
+colors <- c('#1f77b4', '#ff7f0e', '#279e68', '#d62728', '#aa40fc',
+            '#8c564b', '#e377c2', '#b5bd61', '#17becf', '#aec7e8')
+
+if (!file.exists(params$input_rds)) {
+  stop("Supply the private Seurat input locally before enabling execution.")
+}
+cells <- readRDS(params$input_rds)
+stopifnot(inherits(cells, "Seurat"), "RNA" %in% Assays(cells))
+dir.create(params$output_dir, recursive = TRUE, showWarnings = FALSE)
+```
+
+## Log normalization
+
+```{r log-normalization}
+###Renormalise (log)
+DefaultAssay(cells) <- "RNA"
+cells[["RNA"]]@layers$scale.data <- NULL
+cells[["RNA"]]@layers$data <- NULL
+
+cells <- NormalizeData(cells)
+cells <- FindVariableFeatures(cells, selection.method = "vst", nfeatures = 2000)
+#all.genes <- rownames(cells)
+cells <- ScaleData(cells) #features = all.genes not used
+cells <- RunPCA(cells, npcs = 100)
+ElbowPlot(cells, n = 50)
+DimHeatmap(cells, dims = 10:25, cells = 200, balanced = TRUE)
+
+####PC15
+lognorm_pc15 <- cells
+lognorm_pc15 <- FindNeighbors(lognorm_pc15, dims = 1:15, verbose = FALSE)
+lognorm_pc15 <- FindClusters(lognorm_pc15, verbose = FALSE, resolution = 0.5)
+lognorm_pc15 <- RunUMAP(lognorm_pc15, dims = 1:15,
+                       min.dist = 0.5, spread = 0.5, verbose = FALSE)
+pdf(file.path(params$output_dir, "lognorm_clusters.pdf"), width = 8, height = 6)
+DimPlot(lognorm_pc15, label = TRUE, reduction = "umap", cols = colors, pt.size = 2)
+dev.off()
+```
+
+## SCTransform and principal-component choices
+
+The original notebook repeated the neighbor, cluster and UMAP steps for several
+principal-component choices. Two of those code blocks are retained here without
+their study-specific comparisons or conclusions.
+
+```{r sctransform}
+###Renormalise (SCT)
+DefaultAssay(cells) <- "RNA"
+cells[["SCT"]] <- NULL
+
+cells <- SCTransform(cells, conserve.memory = TRUE, verbose = FALSE)
+cells <- RunPCA(cells, npcs = 100)
+ElbowPlot(cells, n = 50)
+DimHeatmap(cells, dims = 15:25, cells = 200, balanced = TRUE)
+
+sct_cells <- cells
+
+####PC10
+sct_pc10 <- sct_cells
+sct_pc10 <- FindNeighbors(sct_pc10, dims = 1:10, verbose = FALSE)
+sct_pc10 <- FindClusters(sct_pc10, verbose = FALSE, resolution = 0.5)
+sct_pc10 <- RunUMAP(sct_pc10, dims = 1:10, verbose = FALSE)
+pdf(file.path(params$output_dir, "sct_pc10_clusters.pdf"), width = 8, height = 6)
+DimPlot(sct_pc10, label = TRUE, reduction = "umap", cols = colors, pt.size = 2)
+dev.off()
+
+####PC15
+sct_pc15 <- sct_cells
+sct_pc15 <- FindNeighbors(sct_pc15, dims = 1:15, verbose = FALSE)
+sct_pc15 <- FindClusters(sct_pc15, verbose = FALSE, resolution = 0.5)
+sct_pc15 <- RunUMAP(sct_pc15, dims = 1:15,
+                   min.dist = 0.5, spread = 0.5, verbose = FALSE)
+pdf(file.path(params$output_dir, "sct_pc15_clusters.pdf"), width = 8, height = 6)
+DimPlot(sct_pc15, label = TRUE, reduction = "umap", cols = colors, pt.size = 2)
+dev.off()
+```
+
+## Exploratory cluster markers
+
+This section retains the marker-ranking and grouped `top_n` idiom from the
+original notebook. It shows the code structure only. No marker lists or
+cluster identities are supplied, and cluster-wise rankings do not establish
+differences between independently sampled experimental groups.
+
+```{r cluster-markers}
+##Find markers for clusters
+cells <- sct_pc15
+DefaultAssay(cells) <- "SCT"
+Idents(cells) <- "seurat_clusters"
+
+cluster.markers <- FindAllMarkers(cells, min.pct = 0.25, logfc.threshold = 0.25)
+write.table(cluster.markers, file.path(params$output_dir, "cluster_markers.tsv"),
+            quote = F, sep = "\t", col.names = T, row.names = T)
+cluster.markers <- read.csv(file.path(params$output_dir, "cluster_markers.tsv"),
+                            sep = "\t")
+
+cluster.markers <- cluster.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 20, wt = avg_log2FC) -> top20
+
+pdf(file.path(params$output_dir, "cluster_marker_heatmap.pdf"), width = 20, height = 12)
+DoHeatmap(cells, features = top20$gene)
+dev.off()
+```
