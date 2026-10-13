@@ -33,4 +33,4 @@ Each file lists its required private inputs and dependencies. The Jupyter notebo
 
 These are edited research-code excerpts, not an executable public release of the study. No data, rendered figures, model weights, annotation assignments or result tables are included. Notebook structure and Python syntax were checked; the analyses were not rerun against the unpublished inputs.
 
-[All three projects](../../README.md) · [Additional method excerpts](../../methods/) · [Code index](../../docs/CODE_INDEX.md)
+[All three projects](../../README.md) · [Code index](../../docs/CODE_INDEX.md)

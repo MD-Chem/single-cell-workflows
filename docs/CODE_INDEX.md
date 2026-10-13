@@ -1,6 +1,6 @@
 # Research code index
 
-The portfolio contains selected, edited excerpts from 16 supplied analysis files: three HCC notebooks and 13 additional Python/R files. Repeated exploratory blocks and study-specific content have been omitted. A figure-only PDF supplied with the analysis material is not part of this code release.
+The portfolio contains selected, edited excerpts from 13 analysis files: three HCC notebooks and 10 additional Python/R files. Repeated exploratory blocks and study-specific content have been omitted. A figure-only PDF supplied with the analysis material is not part of this code release.
 
 ## Anti-PD-L1 resistance in hepatocellular carcinoma
 
@@ -29,16 +29,6 @@ The portfolio contains selected, edited excerpts from 16 supplied analysis files
 | [Subset scVI / PCA notebook](../projects/fatty-liver-endothelial-cells/notebooks/endothelial-subset-scvi-and-pca.ipynb) | Sparse input, count layers, scVI model training and latent graphs; PCA comparison |
 | [PCA analysis notebook](../projects/fatty-liver-endothelial-cells/notebooks/endothelial-pca-analysis.ipynb) | Scanpy PCA, Leiden, UMAP, summaries and ranking |
 | [R annotation workflow](../projects/fatty-liver-endothelial-cells/workflows/01_scvi_annotation.Rmd) | Imported scVI embedding, Seurat, UCell, subset analysis and clusterProfiler |
-
-## Additional method excerpts
-
-These three source files have mixed or unclear project context, so their methods are presented without attributing the full workflow to one named project.
-
-| File | Primary methods |
-| --- | --- |
-| [Harmony subclustering](../methods/harmony-subclustering.ipynb) | Harmony-adjusted PCs, graph rebuilding, UMAP and Leiden |
-| [Seurat CCA exploration](../methods/seurat-cca-exploration.Rmd) | `IntegrateLayers` with `CCAIntegration`, integrated/unintegrated graph branches, layer handling and optional doublet/reference checks |
-| [Epithelial downstream analysis](../methods/epithelial-downstream-analysis.Rmd) | Previously integrated input, CytoTRACE2 and Monocle3 trajectory exploration |
 
 ## Separate executable examples
 

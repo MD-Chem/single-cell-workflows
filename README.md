@@ -2,7 +2,7 @@
 
 **Mohua Das, PhD · Cancer genomics · R and Python**
 
-I use single-cell transcriptomics to connect experimental biology with changes in gene expression and cell states. This portfolio brings together code I used and adapted across three research projects, from count-matrix preprocessing and integration to annotation, signature scoring and downstream analysis.
+I use single-cell transcriptomics to connect experimental biology with changes in gene expression and cell states. This portfolio brings together code I used and adapted across three research projects, from count-matrix preprocessing and latent modelling to annotation, signature scoring and downstream analysis.
 
 The manuscripts are in preparation. These are selected, edited excerpts of my working code: private paths and identifiers have been generalized, and study-specific annotations, embedded outputs and unpublished findings have been removed. Each project has its own page and code index so the methods can be explored without access to the research data.
 
@@ -14,8 +14,6 @@ The manuscripts are in preparation. These are selected, edited excerpts of my wo
 | **Reversing immune tolerance in colorectal cancer using designed beta-catenin–TCF inhibitors (CRTi)** | Scanpy, AnnData, Scrublet, Seurat, DoubletFinder, SingleR, UCell, CytoTRACE; supporting bulk RNA-seq analysis | [Project and code](projects/crti-colorectal-cancer/) |
 | **Characterisation of endothelial cells in progressive fatty liver disease in humans** | scvi-tools, Scanpy, Seurat, UCell, marker review and enrichment analysis | [Project and code](projects/fatty-liver-endothelial-cells/) |
 
-[Additional method excerpts](methods/) demonstrate **Harmony** in Python and **Seurat CCA integration** in R. These and a CytoTRACE2/Monocle3 example are kept separate because their source notebooks have mixed or unclear project context; they are not attributed to a specific project here.
-
 ## Find evidence of a skill
 
 | What to inspect | Code example |
@@ -24,7 +22,6 @@ The manuscripts are in preparation. These are selected, edited excerpts of my wo
 | Python preprocessing and per-capture doublet scoring | [10x / AnnData preprocessing](projects/crti-colorectal-cancer/notebooks/01-preprocessing.ipynb) · [Scrublet](projects/crti-colorectal-cancer/notebooks/02-filtering-scrublet.ipynb) |
 | Scanpy normalization, PCA and neighborhood sensitivity | [Clustering notebook](projects/crti-colorectal-cancer/notebooks/03-clustering.ipynb) |
 | scVI model setup, training and latent representation | [Human endothelial project](projects/fatty-liver-endothelial-cells/#python-notebooks) |
-| Batch correction and integration | [Harmony](methods/harmony-subclustering.ipynb) · [Seurat CCA](methods/seurat-cca-exploration.Rmd) |
 | R annotation, signature scoring and downstream analysis | [CRTi R workflows](projects/crti-colorectal-cancer/#r-workflows) · [Endothelial R workflow](projects/fatty-liver-endothelial-cells/#r-workflow) |
 
 The [complete code index](docs/CODE_INDEX.md) distinguishes project workflows, supporting bulk analysis and the integration excerpts. Tool listings reflect implemented calls, not packages that were merely imported.

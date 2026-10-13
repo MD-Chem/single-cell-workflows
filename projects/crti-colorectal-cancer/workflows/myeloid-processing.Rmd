@@ -229,8 +229,8 @@ dev.off()
 
 ## CytoTRACE scoring
 
-This is the original CytoTRACE stage, distinct from CytoTRACE2 in the epithelial
-notebook. Dense conversion requires sufficient memory; expression identifiers and
+This stage uses the original CytoTRACE package. Dense conversion requires
+sufficient memory; expression identifiers and
 the installed package version need to be checked before any private execution.
 
 ```{r cytotrace}

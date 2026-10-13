@@ -1,6 +1,6 @@
 # Validation record
 
-The executed checks below apply to the separate synthetic companion in `scripts/` and `tests/`. They do not validate the research excerpts in `workflows/`, `projects/` or `methods/`.
+The executed checks below apply to the separate synthetic companion in `scripts/` and `tests/`. They do not validate the research excerpts in `workflows/` or `projects/`.
 
 ## Executed Python example
 
@@ -28,7 +28,7 @@ These checks establish file structure and review scope, not scientific correctne
 
 ## R validation boundary
 
-The synthetic R scripts received source review and delimiter/quote checks. The research R files in `workflows/`, `projects/` and `methods/` are selected, edited excerpts and have not been rerun with their required private inputs. R was unavailable in the preparation environment, so the scripts were not parsed by R or executed with Seurat, SoupX, or scDblFinder. Their numerical output and package compatibility remain unverified.
+The synthetic R scripts received source review and delimiter/quote checks. The research R files in `workflows/` and `projects/` are selected, edited excerpts and have not been rerun with their required private inputs. R was unavailable in the preparation environment, so the scripts were not parsed by R or executed with Seurat, SoupX, or scDblFinder. Their numerical output and package compatibility remain unverified.
 
 When run, each R example records its parameters and `sessionInfo()`. The installer selects available packages; it does not pin a tested R environment. No output from the synthetic R scripts is committed or presented as verified. The two selected real analysis figures are archival outputs supplied by the author; they were not regenerated or numerically revalidated in this environment.
 

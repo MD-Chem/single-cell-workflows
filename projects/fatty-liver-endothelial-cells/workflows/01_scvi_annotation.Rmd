@@ -282,4 +282,4 @@ write.csv(rownames(ec_subset), file = "private_outputs/subset_genes.csv",
 
 Package imports alone are not evidence that a method ran. In particular, the
 source imported doublet-detection packages but did not run their methods in the
-human annotation workflow above. No Harmony step is represented here.
+human annotation workflow above.
