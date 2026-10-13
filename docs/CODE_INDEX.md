@@ -29,7 +29,3 @@ The portfolio contains selected, edited excerpts from 13 analysis files: three H
 | [Subset scVI / PCA notebook](../projects/fatty-liver-endothelial-cells/notebooks/endothelial-subset-scvi-and-pca.ipynb) | Sparse input, count layers, scVI model training and latent graphs; PCA comparison |
 | [PCA analysis notebook](../projects/fatty-liver-endothelial-cells/notebooks/endothelial-pca-analysis.ipynb) | Scanpy PCA, Leiden, UMAP, summaries and ranking |
 | [R annotation workflow](../projects/fatty-liver-endothelial-cells/workflows/01_scvi_annotation.Rmd) | Imported scVI embedding, Seurat, UCell, subset analysis and clusterProfiler |
-
-## Separate executable examples
-
-The programs in [`scripts/`](../scripts/) and tests in [`tests/`](../tests/) were added as synthetic portfolio demonstrations. They are not source files from the three studies. See [the companion guide](SYNTHETIC_EXAMPLE.md) and [validation record](VALIDATION.md).

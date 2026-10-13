@@ -32,6 +32,6 @@ The R files are complementary analysis excerpts; they are not a single pipeline 
 
 The code retains analysis calls and plotting patterns but includes no new figures, notebook outputs or biological findings. Private inputs supply marker panels, reference objects, annotation maps and experimental contrasts. No counts, sample metadata or result tables are included.
 
-The excerpts received structural and source review, not execution against the unpublished data. The R workflows include both historical and newer package interfaces; inspect the notebook-specific requirements before reuse. The repository's synthetic-example requirements do not provide a tested environment for these research files.
+The excerpts received structural and source review, not execution against the unpublished data. The R workflows include both historical and newer package interfaces; inspect the notebook-specific requirements before reuse. A validated public execution environment is not provided for these research files.
 
 [All three projects](../../README.md) · [Code index](../../docs/CODE_INDEX.md) · [Validation](../../docs/VALIDATION.md)

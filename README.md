@@ -24,7 +24,7 @@ The manuscripts are in preparation. These are selected, edited excerpts of my wo
 | scVI model setup, training and latent representation | [Human endothelial project](projects/fatty-liver-endothelial-cells/#python-notebooks) |
 | R annotation, signature scoring and downstream analysis | [CRTi R workflows](projects/crti-colorectal-cancer/#r-workflows) · [Endothelial R workflow](projects/fatty-liver-endothelial-cells/#r-workflow) |
 
-The [complete code index](docs/CODE_INDEX.md) distinguishes project workflows, supporting bulk analysis and the integration excerpts. Tool listings reflect implemented calls, not packages that were merely imported.
+The [complete code index](docs/CODE_INDEX.md) links each project workflow and its supporting analysis code. Tool listings reflect implemented calls, not packages that were merely imported.
 
 ## A view of my HCC analysis
 
@@ -43,23 +43,6 @@ The research notebooks require private count matrices, AnnData/Seurat objects or
 The edits retain substantive analysis steps and plotting code. Study-specific marker panels and annotation maps are supplied through private inputs instead of being embedded in the public files. Existing source and tutorial credits are retained where present.
 
 [Provenance and sharing scope](docs/DATA_PROVENANCE.md) · [Validation record](docs/VALIDATION.md)
-
-## Runnable Python companion
-
-A separate Python/Scanpy example uses independently simulated data to demonstrate a complete, executable workflow. It was added for the portfolio and is distinct from the research excerpts above.
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-python scripts/make_synthetic_data.py --output generated
-python scripts/scanpy_workflow.py --input generated/synthetic.h5ad --output outputs/scanpy
-python -m pytest -q
-```
-
-Use Python 3.12. On Windows, activate with `.venv\Scripts\Activate.ps1` in PowerShell. Output directories must be empty; choose a fresh output path for another run. The eight Python checks passed for this companion. Its pinned requirements do not define a tested environment for the research notebooks.
-
-[Companion instructions and synthetic preview](docs/SYNTHETIC_EXAMPLE.md)
 
 ## About me
 
