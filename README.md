@@ -4,7 +4,7 @@
 
 I use single-cell analysis to connect experimental work with changes in gene expression and cell states. This repository brings together selected excerpts from R notebooks I wrote for my research, covering ambient-RNA correction, doublet checks, normalization, clustering, and annotation.
 
-The notebooks retain my analysis sequence and plotting patterns. I have generalized file paths and identifiers and removed study-specific annotations and embedded outputs for public sharing. Research data are not distributed with the code.
+The notebooks retain my analysis sequence and plotting patterns. I have generalized file paths and identifiers and removed study-specific annotations and embedded outputs for public sharing as the project manuscript is still is under preparation. Research data are not distributed with the code.
 
 ## Selected plots from my analysis
 
