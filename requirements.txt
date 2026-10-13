@@ -1,0 +1,9 @@
+# Python 3.12. Direct dependencies pinned to the verified demonstration environment.
+scanpy==1.11.5
+anndata==0.13.4
+igraph==0.11.9
+numpy==2.5.4
+scipy==1.18.1
+pandas==3.0.6
+matplotlib==3.11.2
+pytest==8.4.2

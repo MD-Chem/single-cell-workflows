@@ -1,0 +1,28 @@
+# Local environments and caches
+.venv/
+__pycache__/
+.pytest_cache/
+.ipynb_checkpoints/
+.Rhistory
+.RData
+.Rproj.user/
+.DS_Store
+
+# Inputs and generated analysis artifacts stay local
+data/
+generated/
+outputs/
+*.h5ad
+*.rds
+*.RData
+*.pptx
+*.xlsx
+*.pdf
+*.mtx
+*.mtx.gz
+
+# Machine-specific configuration and credentials
+.env
+.env.*
+*.key
+*.pem
